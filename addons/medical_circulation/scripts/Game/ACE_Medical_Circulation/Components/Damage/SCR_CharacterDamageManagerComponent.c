@@ -4,6 +4,13 @@ modded class SCR_CharacterDamageManagerComponent : SCR_DamageManagerComponent
 	protected ACE_Medical_BrainHitZone m_ACE_Medical_BrainHitZone;
 	protected ACE_Medical_VitalsComponent m_ACE_Medical_Vitals;
 	protected float m_fACE_Medical_BloodFlowScale = 1;
+
+	protected float m_fACE_Medical_LastAdrenalineHitResponseTime = 0.0;
+
+	protected const float ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_COOLDOWN = 12.0;
+	protected const float ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_MIN_DAMAGE = 0.05;
+	protected const float ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_DURATION = 8.0;
+	protected const float ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_DPS = -0.04;
 	
 	//-----------------------------------------------------------------------------------------------------------
 	//! Initialize members
@@ -15,6 +22,45 @@ modded class SCR_CharacterDamageManagerComponent : SCR_DamageManagerComponent
 			return;
 		
 		m_ACE_Medical_Vitals = ACE_Medical_VitalsComponent.Cast(owner.FindComponent(ACE_Medical_VitalsComponent));
+	}
+
+	//-----------------------------------------------------------------------------------------------------------
+	//! Apply a short adrenaline response when taking damage
+	override void OnDamage(notnull BaseDamageContext damageContext)
+	{
+		super.OnDamage(damageContext);
+
+		if (!Replication.IsServer())
+			return;
+
+		ACE_Medical_ApplyAdrenalineHitResponse(damageContext);
+	}
+
+	//-----------------------------------------------------------------------------------------------------------
+	//! Uses the existing ACE epinephrine effect as a short adrenaline response.
+	//! This avoids directly modifying HR/BP.
+	protected void ACE_Medical_ApplyAdrenalineHitResponse(notnull BaseDamageContext damageContext)
+	{
+		if (damageContext.damageValue < ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_MIN_DAMAGE)
+			return;
+
+		float currentTime = GetGame().GetWorld().GetWorldTime();
+
+		if (currentTime < m_fACE_Medical_LastAdrenalineHitResponseTime + ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_COOLDOWN)
+			return;
+
+		array<ref SCR_PersistentDamageEffect> effects = GetAllPersistentEffectsOfType(ACE_Medical_EpinephrineDamageEffect);
+		if (!effects.IsEmpty())
+			return;
+
+		ACE_Medical_EpinephrineDamageEffect epiEffect = new ACE_Medical_EpinephrineDamageEffect();
+
+		epiEffect.SetMaxDuration(ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_DURATION);
+		epiEffect.SetDPS(ACE_MEDICAL_ADRENALINE_HIT_RESPONSE_DPS);
+
+		AddDamageEffect(epiEffect);
+
+		m_fACE_Medical_LastAdrenalineHitResponseTime = currentTime;
 	}
 	
 	//-----------------------------------------------------------------------------------------------------------
